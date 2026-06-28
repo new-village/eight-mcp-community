@@ -42,6 +42,19 @@ Run directly without installing permanently:
 uvx eight-mcp-community serve
 ```
 
+If Eight returns Cloudflare-style `403` responses with valid cookies, use the optional `curl_cffi` transport. It impersonates Chrome for the normal CLI/MCP path and does not require Playwright:
+
+```bash
+uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve
+```
+
+If you install with `python -m pip install --user eight-mcp-community`, the command may be placed under `~/.local/bin`, which is not always on `PATH`. Either add that directory to `PATH`, use the absolute path, or run the module form:
+
+```bash
+python -m eight serve
+~/.local/bin/eight-mcp-community serve
+```
+
 MCP client configuration:
 
 ```json
@@ -54,6 +67,21 @@ MCP client configuration:
   }
 }
 ```
+
+Codex MCP examples:
+
+```bash
+# PATH-based
+codex mcp add eight -- eight-mcp-community serve
+
+# pip --user / absolute-path style
+codex mcp add eight -- /Users/you/.local/bin/eight-mcp-community serve
+
+# Cloudflare-resistant transport via uvx
+codex mcp add eight -- uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve
+```
+
+After package upgrades, optional dependency changes, authentication changes, or MCP configuration edits, restart Codex / your MCP client or otherwise restart the MCP server process. Already-running MCP servers keep using the old Python process.
 
 Local development MCP config:
 
@@ -108,6 +136,8 @@ Eight may require MFA or another browser challenge. In that case, use the browse
 uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login
 ```
 
+Browser login is optional and only installed through the `[browser]` extra. The standard CLI/MCP path does not depend on Playwright.
+
 If Playwright's browser binary is missing, install it once on the same machine/user account:
 
 ```bash
@@ -145,7 +175,7 @@ Authentication/setup tools:
 - `eight_auth_status` — report whether auth is configured and from where, without leaking secrets
 - `eight_auth_check` — verify access to Eight `/myhome` and CSRF extraction
 - `eight_set_cookie` — store a Cookie header in the local config file, or log in with `email`/`password` and save cookies
-- `eight_auth_login_browser` — open a Playwright browser login flow and save cookies locally
+- `eight_auth_login_browser` — open a Playwright browser login flow and save cookies locally after verifying `/myhome` status and CSRF token presence
 - `eight_clear_cookie` — delete the stored config-file cookie
 - `eight_login_help` — explain supported setup paths
 
@@ -155,7 +185,7 @@ Search tools:
 - `eight_search_registered_cards` — search only registered/exchanged business cards
 - `eight_search_network_people` — search only public Eight network people, keeping public results separate from private cards
 
-Returned data is intentionally minimal and LLM-safe: source, name, company, department, title, updated date, and confidence/source bucket. Raw HTML, raw JSON, cookies, tokens, email addresses, phone numbers, and bulk exports are not returned.
+Returned data is intentionally minimal and LLM-safe: source, name, company, department, title, updated date, confidence/source bucket, and when available `matched_fields` / `match_excerpt` so users can understand why a result matched. Raw HTML, raw JSON, cookies, tokens, email addresses, phone numbers, and bulk exports are not returned.
 
 ## Privacy and safety
 

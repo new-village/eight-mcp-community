@@ -88,6 +88,8 @@ def eight_login_help() -> dict[str, Any]:
             "EIGHT_SESSION_COOKIE",
             "EIGHT_MCP_COMMUNITY_CONFIG",
             "EIGHT_COOKIE_FILE",
+            "Install/use eight-mcp-community[cloudflare] for curl_cffi "
+            "Chrome impersonation when valid cookies hit 403",
             "eight_set_cookie email/password arguments or CLI --email/--password",
             "eight_auth_login_browser / CLI auth-login for Playwright browser login",
         ],
@@ -95,6 +97,7 @@ def eight_login_help() -> dict[str, Any]:
             "uvx eight-mcp-community auth-status",
             "uvx eight-mcp-community set-cookie 'Cookie header'",
             "uvx eight-mcp-community set-cookie --email you@example.com --password '...'",
+            "uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve",
             "uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login",
             "uvx eight-mcp-community auth-check",
             "uvx eight-mcp-community clear-cookie",

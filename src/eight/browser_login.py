@@ -3,11 +3,11 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import requests
-
 from . import auth
 from .client import MYHOME_URL
 from .errors import AuthRequiredError
+from .html import parse_tokens
+from .http import create_http_session
 
 LOGIN_URL = "https://8card.net/login"
 
@@ -71,7 +71,7 @@ def _cookie_header_from_playwright(cookies: list[dict[str, Any]]) -> str:
 
 
 def _cookie_authenticates(cookie_header: str) -> bool:
-    session = requests.Session()
+    session = create_http_session()
     session.headers.update(
         {
             "Cookie": cookie_header,
@@ -82,6 +82,11 @@ def _cookie_authenticates(cookie_header: str) -> bool:
     )
     try:
         response = session.get(MYHOME_URL, timeout=15, allow_redirects=True)
-    except requests.RequestException:
+    except Exception:
         return False
-    return "/login" not in response.url and "ログイン" not in response.text[:5000]
+    if response.status_code != 200:
+        return False
+    if "/login" in response.url or "ログイン" in response.text[:5000]:
+        return False
+    tokens = parse_tokens(response.text)
+    return bool(tokens.csrf_token or tokens.authenticity_token)

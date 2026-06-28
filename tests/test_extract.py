@@ -37,6 +37,32 @@ def test_extract_personal_cards_minimal_fields() -> None:
     ]
 
 
+def test_extract_personal_cards_includes_match_reason_for_memo_hit() -> None:
+    data = {
+        "personal_cards": [
+            {
+                "person": {
+                    "personal_cards": [
+                        {
+                            "friend_card": {
+                                "front_full_name": "鈴木 太郎",
+                                "front_company_name": "東京商事",
+                                "front_title": "Director",
+                                "memo": "展示会で高橋さんから紹介。次回相談予定。",
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    rows = extract_personal_cards(data, query="高橋")
+
+    assert rows[0].to_safe_dict()["matched_fields"] == ["memo"]
+    assert rows[0].to_safe_dict()["match_excerpt"] == "展示会で高橋さんから紹介。次回相談予定。"
+
+
 def test_extract_network_people_deduplicates_and_limits() -> None:
     data = {
         "people": [

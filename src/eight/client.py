@@ -11,6 +11,7 @@ from . import auth
 from .errors import AuthRequiredError, EightApiError, LoginChallengeError, MfaRequiredError
 from .extract import extract_network_people, extract_personal_cards
 from .html import parse_tokens
+from .http import create_http_session
 from .models import CardResult, SearchResult
 
 LOGIN_URL = "https://8card.net/login"
@@ -138,12 +139,12 @@ class EightClient:
             {"keyword": keyword, "page": 1, "sort": 5, "per_page": per_page},
             csrf,
         )
-        return extract_personal_cards(data)
+        return extract_personal_cards(data, query=keyword)
 
     def search_network_people(self, keyword: str, *, limit: int = 20) -> list[CardResult]:
         csrf = self.ensure_auth()
         data = self._post_json(SEARCH_EIGHT_NETWORKS_URL, {"keyword": keyword}, csrf)
-        return extract_network_people(data, limit)
+        return extract_network_people(data, limit, query=keyword)
 
     def _post_json(self, url: str, payload: dict[str, Any], csrf: str) -> dict[str, Any]:
         response = self.session.post(
@@ -173,7 +174,7 @@ class EightClient:
 
     @staticmethod
     def _make_session() -> requests.Session:
-        session = requests.Session()
+        session = create_http_session()
         session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -191,7 +192,14 @@ class EightClient:
             return
         jar = MozillaCookieJar(str(path))
         jar.load(ignore_discard=True, ignore_expires=True)
-        self.session.cookies = jar
+        for cookie in jar:
+            if cookie.value is not None:
+                self.session.cookies.set(
+                    cookie.name,
+                    cookie.value,
+                    domain=cookie.domain,
+                    path=cookie.path,
+                )
 
     def _cookie_header_from_session(self) -> str:
         return "; ".join(f"{cookie.name}={cookie.value}" for cookie in self.session.cookies)

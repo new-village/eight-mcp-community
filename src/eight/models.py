@@ -15,10 +15,12 @@ class CardResult:
     title: str | None = None
     updated: str | None = None
     confidence: str | None = None
+    matched_fields: list[str] | None = None
+    match_excerpt: str | None = None
 
     def to_safe_dict(self) -> dict[str, Any]:
         """Return only LLM-safe, minimal fields."""
-        return {key: value for key, value in asdict(self).items() if value not in (None, "")}
+        return {key: value for key, value in asdict(self).items() if value not in (None, "", [])}
 
 
 @dataclass(frozen=True)
