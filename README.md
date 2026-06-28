@@ -100,6 +100,8 @@ If you do not have a Cookie header, you can ask the CLI to log in and save cooki
 eight-mcp-community set-cookie --email you@example.com --password 'your password'
 ```
 
+`--email` and `--password` are used only for the login request. The config file stores the resulting Cookie header, not the email or password.
+
 Eight may require MFA or another browser challenge. In that case, use the browser login flow:
 
 ```bash

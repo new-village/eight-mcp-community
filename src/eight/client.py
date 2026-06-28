@@ -56,7 +56,8 @@ class EightClient:
                 "EIGHT_EMAIL/EIGHT_PASSWORD."
             )
 
-        self.login(email, password)
+        cookie = self.login(email, password)
+        auth.save_cookie(cookie)
         csrf = self.get_csrf()
         if not csrf:
             raise AuthRequiredError(
@@ -97,7 +98,6 @@ class EightClient:
 
         cookie_header = self._cookie_header_from_session()
         if cookie_header:
-            auth.save_cookie(cookie_header)
             self.session.headers["Cookie"] = cookie_header
             return cookie_header
         raise AuthRequiredError("Eight login succeeded but no session cookies were available.")

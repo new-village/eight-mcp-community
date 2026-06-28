@@ -8,6 +8,7 @@ from . import auth
 from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
+from .login_setup import save_cookie_from_password_login
 
 mcp = FastMCP("eight-mcp-community")
 
@@ -48,17 +49,7 @@ def eight_set_cookie(
             return auth.save_cookie(cookie)
 
         if email or password:
-            if not (email and password):
-                raise ValueError("Both email and password are required for password login.")
-            client = EightClient()
-            cookie = client.login(email, password)
-            client.auth_check()
-            saved = auth.save_cookie(cookie)
-            return {
-                "authenticated": True,
-                **saved,
-                "message": "Eight authentication configured from email/password login.",
-            }
+            return save_cookie_from_password_login(email or "", password or "")
 
         raise ValueError("Provide cookie, or email and password.")
     except Exception as exc:  # noqa: BLE001

@@ -9,6 +9,7 @@ from . import auth
 from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
+from .login_setup import save_cookie_from_password_login
 from .mcp_server import run as run_mcp_server
 
 
@@ -116,17 +117,7 @@ def _run_set_cookie(args: argparse.Namespace) -> dict[str, Any]:
         return auth.save_cookie(args.cookie)
 
     if args.email or args.password:
-        if not (args.email and args.password):
-            raise ValueError("Both --email and --password are required for password login.")
-        client = EightClient()
-        cookie = client.login(args.email, args.password)
-        client.auth_check()
-        saved = auth.save_cookie(cookie)
-        return {
-            "authenticated": True,
-            **saved,
-            "message": "Eight authentication configured from email/password login.",
-        }
+        return save_cookie_from_password_login(args.email, args.password)
 
     if args.browser_login:
         return run_browser_login(headless=args.headless, timeout_seconds=args.timeout_seconds)
