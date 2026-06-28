@@ -94,6 +94,24 @@ eight-mcp-community set-cookie 'your 8card.net Cookie header'
 eight-mcp-community auth-status
 ```
 
+If you do not have a Cookie header, you can ask the CLI to log in and save cookies:
+
+```bash
+eight-mcp-community set-cookie --email you@example.com --password 'your password'
+```
+
+Eight may require MFA or another browser challenge. In that case, use the browser login flow:
+
+```bash
+uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login
+```
+
+If Playwright's browser binary is missing, install it once on the same machine/user account:
+
+```bash
+python -m playwright install chromium
+```
+
 Or use env:
 
 ```bash
@@ -108,6 +126,8 @@ If `EIGHT_EMAIL` and `EIGHT_PASSWORD` are set, the client can perform the same p
 eight-mcp-community auth-status
 eight-mcp-community auth-check
 eight-mcp-community set-cookie 'Cookie header'
+eight-mcp-community set-cookie --email you@example.com --password 'your password'
+uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login
 eight-mcp-community clear-cookie
 eight-mcp-community search '鈴木'
 eight-mcp-community search '鈴木' --always-network
@@ -122,7 +142,8 @@ Authentication/setup tools:
 
 - `eight_auth_status` — report whether auth is configured and from where, without leaking secrets
 - `eight_auth_check` — verify access to Eight `/myhome` and CSRF extraction
-- `eight_set_cookie` — store a Cookie header in the local config file; optionally verify first
+- `eight_set_cookie` — store a Cookie header in the local config file, or log in with `email`/`password` and save cookies
+- `eight_auth_login_browser` — open a Playwright browser login flow and save cookies locally
 - `eight_clear_cookie` — delete the stored config-file cookie
 - `eight_login_help` — explain supported setup paths
 

@@ -5,6 +5,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from . import auth
+from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
 
@@ -31,14 +32,44 @@ def eight_auth_check() -> dict[str, Any]:
 
 
 @mcp.tool()
-def eight_set_cookie(cookie: str, verify: bool = True) -> dict[str, Any]:
-    """Stores an Eight Cookie header in the local eight-mcp-community config file."""
+def eight_set_cookie(
+    cookie: str | None = None,
+    verify: bool = True,
+    email: str | None = None,
+    password: str | None = None,
+) -> dict[str, Any]:
+    """Store a Cookie header, or log in with email/password and save cookies."""
     try:
-        if verify:
+        if cookie:
+            if verify:
+                client = EightClient()
+                client.session.headers["Cookie"] = cookie
+                client.auth_check()
+            return auth.save_cookie(cookie)
+
+        if email or password:
+            if not (email and password):
+                raise ValueError("Both email and password are required for password login.")
             client = EightClient()
-            client.session.headers["Cookie"] = cookie
+            cookie = client.login(email, password)
             client.auth_check()
-        return auth.save_cookie(cookie)
+            saved = auth.save_cookie(cookie)
+            return {
+                "authenticated": True,
+                **saved,
+                "message": "Eight authentication configured from email/password login.",
+            }
+
+        raise ValueError("Provide cookie, or email and password.")
+    except Exception as exc:  # noqa: BLE001
+        return error_detail(exc)
+
+
+@mcp.tool()
+def eight_auth_login_browser(headless: bool = False, timeoutSeconds: int = 180) -> dict[str, Any]:
+    """Open a Playwright browser login flow and save Eight cookies locally."""
+    try:
+        return run_browser_login(headless=headless, timeout_seconds=timeoutSeconds)
     except Exception as exc:  # noqa: BLE001
         return error_detail(exc)
 
@@ -66,12 +97,14 @@ def eight_login_help() -> dict[str, Any]:
             "EIGHT_SESSION_COOKIE",
             "EIGHT_MCP_COMMUNITY_CONFIG",
             "EIGHT_COOKIE_FILE",
-            "EIGHT_EMAIL + EIGHT_PASSWORD (optional password-login fallback; "
-            "MFA may require manual continuation)",
+            "eight_set_cookie email/password arguments or CLI --email/--password",
+            "eight_auth_login_browser / CLI auth-login for Playwright browser login",
         ],
         "cli": [
             "uvx eight-mcp-community auth-status",
             "uvx eight-mcp-community set-cookie 'Cookie header'",
+            "uvx eight-mcp-community set-cookie --email you@example.com --password '...'",
+            "uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login",
             "uvx eight-mcp-community auth-check",
             "uvx eight-mcp-community clear-cookie",
         ],

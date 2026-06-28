@@ -14,7 +14,6 @@ SESSION_COOKIE_ENV = "EIGHT_SESSION_COOKIE"
 COOKIE_FILE_ENV = "EIGHT_COOKIE_FILE"
 
 
-
 @dataclass(frozen=True)
 class CredentialSource:
     source: str

@@ -64,7 +64,7 @@ class EightClient:
             )
         return csrf
 
-    def login(self, email: str, password: str) -> None:
+    def login(self, email: str, password: str) -> str:
         response = self.session.get(LOGIN_URL, timeout=self.timeout)
         response.raise_for_status()
         token = parse_tokens(response.text).authenticity_token
@@ -99,6 +99,8 @@ class EightClient:
         if cookie_header:
             auth.save_cookie(cookie_header)
             self.session.headers["Cookie"] = cookie_header
+            return cookie_header
+        raise AuthRequiredError("Eight login succeeded but no session cookies were available.")
 
     def get_csrf(self) -> str | None:
         response = self.session.get(MYHOME_URL, timeout=self.timeout, allow_redirects=True)
