@@ -30,7 +30,6 @@ def save_cookie_from_password_login(
         "authenticated": True,
         **saved,
         "message": (
-            "Eight authentication configured from email/password login. "
-            "Only cookies were saved."
+            "Eight authentication configured from email/password login. Only cookies were saved."
         ),
     }
