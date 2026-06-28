@@ -104,6 +104,14 @@ Local development MCP config:
 
 ## Authentication
 
+Start with the setup helper, especially after `pip install --user` or Codex MCP registration:
+
+```bash
+~/.local/bin/eight-mcp-community auth-setup
+```
+
+The base package intentionally does **not** install Playwright. Do not make `auth-login` the first instruction after a base install. Configure a Cookie header first, or install the optional browser extra before using browser login.
+
 Supported credential lookup order:
 
 1. `EIGHT_COOKIE` — Cookie header
@@ -118,25 +126,27 @@ For remote/server use, prefer a cookie config or env secret. The package does no
 Create a config file from a trusted Cookie header:
 
 ```bash
-eight-mcp-community set-cookie 'your 8card.net Cookie header'
-eight-mcp-community auth-status
+~/.local/bin/eight-mcp-community set-cookie 'your 8card.net Cookie header'
+~/.local/bin/eight-mcp-community auth-check
 ```
 
 If you do not have a Cookie header, you can ask the CLI to log in and save cookies:
 
 ```bash
-eight-mcp-community set-cookie --email you@example.com --password 'your password'
+~/.local/bin/eight-mcp-community set-cookie --email you@example.com --password 'your password'
 ```
 
 `--email` and `--password` are used only for the login request. The config file stores the resulting Cookie header, not the email or password.
 
-Eight may require MFA or another browser challenge. In that case, use the browser login flow:
+Eight may require MFA or another browser challenge. In that case, install the optional browser extra before using the browser login flow:
 
 ```bash
-uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login
+python -m pip install --user 'eight-mcp-community[browser]'
+python -m playwright install chromium
+~/.local/bin/eight-mcp-community auth-login
 ```
 
-Browser login is optional and only installed through the `[browser]` extra. The standard CLI/MCP path does not depend on Playwright.
+Browser login is optional and only installed through the `[browser]` extra. The standard CLI/MCP path does not depend on Playwright. If you run `auth-login` from a base install, it prints JSON setup guidance instead of a traceback.
 
 If Playwright's browser binary is missing, install it once on the same machine/user account:
 
@@ -155,11 +165,14 @@ If `EIGHT_EMAIL` and `EIGHT_PASSWORD` are set, the client can perform the same p
 ## CLI
 
 ```bash
+eight-mcp-community auth-setup
 eight-mcp-community auth-status
 eight-mcp-community auth-check
 eight-mcp-community set-cookie 'Cookie header'
 eight-mcp-community set-cookie --email you@example.com --password 'your password'
-uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login
+python -m pip install --user 'eight-mcp-community[browser]'
+python -m playwright install chromium
+eight-mcp-community auth-login
 eight-mcp-community clear-cookie
 eight-mcp-community search '鈴木'
 eight-mcp-community search '鈴木' --always-network
@@ -173,6 +186,7 @@ All command output is JSON except `--help`.
 Authentication/setup tools:
 
 - `eight_auth_status` — report whether auth is configured and from where, without leaking secrets
+- `eight_auth_setup` — return recommended setup steps; use this before telling users to run browser login
 - `eight_auth_check` — verify access to Eight `/myhome` and CSRF extraction
 - `eight_set_cookie` — store a Cookie header in the local config file, or log in with `email`/`password` and save cookies
 - `eight_auth_login_browser` — open a Playwright browser login flow and save cookies locally after verifying `/myhome` status and CSRF token presence

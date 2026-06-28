@@ -9,6 +9,7 @@ from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
 from .login_setup import save_cookie_from_password_login
+from .setup_help import auth_setup_help
 
 mcp = FastMCP("eight-mcp-community")
 
@@ -75,13 +76,20 @@ def eight_clear_cookie() -> dict[str, Any]:
 
 
 @mcp.tool()
+def eight_auth_setup() -> dict[str, Any]:
+    """Return recommended setup steps before running auth-dependent tools."""
+    return auth_setup_help()
+
+
+@mcp.tool()
 def eight_login_help() -> dict[str, Any]:
     """Explains supported eight-mcp-community authentication setup paths."""
     return {
         "recommended": (
-            "For servers and private agents, provide EIGHT_COOKIE or call "
-            "eight_set_cookie with a trusted 8card.net Cookie header."
+            "Run eight_auth_setup first. Base installs should configure cookies "
+            "before browser login."
         ),
+        "setup": auth_setup_help(),
         "configFile": str(auth.config_path()),
         "env": [
             "EIGHT_COOKIE",
@@ -91,14 +99,17 @@ def eight_login_help() -> dict[str, Any]:
             "Install/use eight-mcp-community[cloudflare] for curl_cffi "
             "Chrome impersonation when valid cookies hit 403",
             "eight_set_cookie email/password arguments or CLI --email/--password",
-            "eight_auth_login_browser / CLI auth-login for Playwright browser login",
+            "Browser login is optional and requires eight-mcp-community[browser]",
         ],
         "cli": [
+            "uvx eight-mcp-community auth-setup",
             "uvx eight-mcp-community auth-status",
             "uvx eight-mcp-community set-cookie 'Cookie header'",
             "uvx eight-mcp-community set-cookie --email you@example.com --password '...'",
             "uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve",
-            "uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login",
+            "python -m pip install --user 'eight-mcp-community[browser]'",
+            "python -m playwright install chromium",
+            "eight-mcp-community auth-login",
             "uvx eight-mcp-community auth-check",
             "uvx eight-mcp-community clear-cookie",
         ],

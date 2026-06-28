@@ -8,6 +8,7 @@ from .client import MYHOME_URL
 from .errors import AuthRequiredError
 from .html import parse_tokens
 from .http import create_http_session
+from .setup_help import browser_login_unavailable_response
 
 LOGIN_URL = "https://8card.net/login"
 
@@ -17,10 +18,15 @@ def run_browser_login(*, headless: bool = False, timeout_seconds: int = 180) -> 
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
+        setup = browser_login_unavailable_response()
         raise AuthRequiredError(
-            "Playwright is not installed. Run with an extra dependency, for example: "
-            "uvx --from 'eight-mcp-community[browser]' eight-mcp-community auth-login, "
-            "or install with: uv tool install 'eight-mcp-community[browser]'."
+            setup["message"]
+            + " Next steps: "
+            + setup["commands"]["setCookie"]
+            + " OR "
+            + setup["commands"]["installBrowserExtra"]
+            + "; "
+            + setup["commands"]["installChromium"]
         ) from exc
 
     deadline = time.monotonic() + timeout_seconds

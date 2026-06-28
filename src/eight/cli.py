@@ -11,6 +11,11 @@ from .client import EightClient
 from .errors import error_detail
 from .login_setup import save_cookie_from_password_login
 from .mcp_server import run as run_mcp_server
+from .setup_help import (
+    auth_setup_help,
+    browser_login_unavailable_response,
+    is_browser_login_available,
+)
 
 
 def json_print(value: Any) -> None:
@@ -23,6 +28,7 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("serve", help="Run the stdio MCP server")
     sub.add_parser("auth-status", help="Show authentication status without leaking secrets")
+    sub.add_parser("auth-setup", help="Show recommended authentication setup steps")
     sub.add_parser("auth-check", help="Verify Eight authentication")
     sub.add_parser("clear-cookie", help="Delete stored config-file cookie")
 
@@ -67,17 +73,24 @@ def main(argv: list[str] | None = None) -> None:
             run_mcp_server()
         elif command == "auth-status":
             json_print(auth.auth_status())
+        elif command == "auth-setup":
+            json_print(auth_setup_help(command=_invoked_command(argv, parser.prog)))
         elif command == "auth-check":
             json_print(EightClient.from_default_config().auth_check())
         elif command == "set-cookie":
             json_print(_run_set_cookie(args))
         elif command == "auth-login":
-            json_print(
-                run_browser_login(
-                    headless=args.headless,
-                    timeout_seconds=args.timeout_seconds,
+            if not is_browser_login_available():
+                json_print(
+                    browser_login_unavailable_response(command=_invoked_command(argv, parser.prog))
                 )
-            )
+            else:
+                json_print(
+                    run_browser_login(
+                        headless=args.headless,
+                        timeout_seconds=args.timeout_seconds,
+                    )
+                )
         elif command == "clear-cookie":
             json_print(auth.clear_stored_cookie())
         elif command == "search":
@@ -120,14 +133,23 @@ def _run_set_cookie(args: argparse.Namespace) -> dict[str, Any]:
         return save_cookie_from_password_login(args.email, args.password)
 
     if args.browser_login:
+        if not is_browser_login_available():
+            return browser_login_unavailable_response(command="eight-mcp-community")
         return run_browser_login(headless=args.headless, timeout_seconds=args.timeout_seconds)
 
     raise ValueError(
-        "Provide a Cookie header, --email/--password, or --browser-login. "
+        "Provide a Cookie header or --email/--password. Browser login requires the "
+        "optional [browser] extra. "
         "Examples: eight-mcp-community set-cookie 'cookie'; "
         "eight-mcp-community set-cookie --email you@example.com --password '...'; "
-        "eight-mcp-community set-cookie --browser-login"
+        "eight-mcp-community auth-setup"
     )
+
+
+def _invoked_command(argv: list[str] | None, fallback: str) -> str:
+    if argv is None and sys.argv:
+        return sys.argv[0]
+    return fallback
 
 
 if __name__ == "__main__":
