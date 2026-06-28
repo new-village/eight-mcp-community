@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from eight import setup_help
 from eight.setup_help import auth_setup_help, browser_login_unavailable_response
 
@@ -52,5 +54,16 @@ def test_auth_setup_help_includes_agent_install_message_template() -> None:
     message = help_payload["agentPostInstallMessage"]
     assert "auth-setup" in message
     assert "auth-check は設定後の確認用" in message
-    assert "set-cookie 'your 8card.net Cookie header'" in message
+    assert "set-cookie '<COOKIE_HEADER>'" in message
     assert "set-cookie 'your <http" not in message
+
+
+def test_auth_setup_help_avoids_slack_auto_link_placeholders() -> None:
+    help_payload = auth_setup_help(command="/Users/new-village/.local/bin/eight-mcp-community")
+    rendered = str(help_payload)
+
+    assert "8card.net" not in rendered
+    assert "you@example.com" not in rendered
+    assert "<http" not in rendered
+    assert "mailto:" not in rendered
+    assert re.search(r"[\w.+-]+@[\w.-]+", rendered) is None

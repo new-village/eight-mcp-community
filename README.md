@@ -89,8 +89,8 @@ Recommended post-install message for agents:
 Eight MCP registration is installed, but Eight authentication is not configured yet.
 First run setup guidance: /Users/you/.local/bin/eight-mcp-community auth-setup
 To configure auth, choose one setup path:
-1. Cookie header: /Users/you/.local/bin/eight-mcp-community set-cookie 'your 8card.net Cookie header'
-2. Password login: /Users/you/.local/bin/eight-mcp-community set-cookie --email you@example.com --password '...'
+1. Cookie header: /Users/you/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
+2. Password login: /Users/you/.local/bin/eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
 auth-check は設定後の確認用です: /Users/you/.local/bin/eight-mcp-community auth-check
 If auth-check returns 403 even with a valid cookie, use/install eight-mcp-community[cloudflare]. Restart Codex or the MCP client after changes.
 ```
@@ -146,14 +146,14 @@ For remote/server use, prefer a cookie config or env secret. The package does no
 Create a config file from a trusted Cookie header:
 
 ```bash
-~/.local/bin/eight-mcp-community set-cookie 'your 8card.net Cookie header'
+~/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
 ~/.local/bin/eight-mcp-community auth-check
 ```
 
 If you do not have a Cookie header, you can ask the CLI to log in and save cookies:
 
 ```bash
-~/.local/bin/eight-mcp-community set-cookie --email you@example.com --password 'your password'
+~/.local/bin/eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
 ```
 
 `--email` and `--password` are used only for the login request. The config file stores the resulting Cookie header, not the email or password.
@@ -177,7 +177,7 @@ python -m playwright install chromium
 Or use env:
 
 ```bash
-EIGHT_COOKIE='your 8card.net Cookie header' eight-mcp-community auth-check
+EIGHT_COOKIE='<COOKIE_HEADER>' eight-mcp-community auth-check
 ```
 
 If `EIGHT_EMAIL` and `EIGHT_PASSWORD` are set, the client can perform the same password-login flow used by the existing Hermes skill and save resulting cookies into the default config as a Cookie header. MFA/challenge responses are reported as structured errors and are not bypassed.
@@ -189,7 +189,7 @@ eight-mcp-community auth-setup
 eight-mcp-community auth-status
 eight-mcp-community auth-check
 eight-mcp-community set-cookie 'Cookie header'
-eight-mcp-community set-cookie --email you@example.com --password 'your password'
+eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
 python -m pip install --user 'eight-mcp-community[browser]'
 python -m playwright install chromium
 eight-mcp-community auth-login

@@ -18,8 +18,10 @@ def is_browser_login_available() -> bool:
 
 def auth_setup_help(*, command: str = DEFAULT_COMMAND) -> dict[str, Any]:
     verify_command = f"{command} auth-check"
-    set_cookie_command = f"{command} set-cookie 'your 8card.net Cookie header'"
-    password_login_command = f"{command} set-cookie --email you@example.com --password '...'"
+    set_cookie_command = f"{command} set-cookie '<COOKIE_HEADER>'"
+    password_login_command = (
+        f"{command} set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'"
+    )
     return {
         "status": "setup_required",
         "authenticated": False,
