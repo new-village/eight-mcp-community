@@ -83,6 +83,20 @@ codex mcp add eight -- uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-co
 
 After package upgrades, optional dependency changes, authentication changes, or MCP configuration edits, restart Codex / your MCP client or otherwise restart the MCP server process. Already-running MCP servers keep using the old Python process.
 
+Recommended post-install message for agents:
+
+```text
+Eight MCP registration is installed, but Eight authentication is not configured yet.
+First run setup guidance: /Users/you/.local/bin/eight-mcp-community auth-setup
+To configure auth, choose one setup path:
+1. Cookie header: /Users/you/.local/bin/eight-mcp-community set-cookie 'your 8card.net Cookie header'
+2. Password login: /Users/you/.local/bin/eight-mcp-community set-cookie --email you@example.com --password '...'
+auth-check は設定後の確認用です: /Users/you/.local/bin/eight-mcp-community auth-check
+If auth-check returns 403 even with a valid cookie, use/install eight-mcp-community[cloudflare]. Restart Codex or the MCP client after changes.
+```
+
+Do not list `auth-check` as a way to configure cookies; it only verifies an already configured cookie/session.
+
 Local development MCP config:
 
 ```json
@@ -111,6 +125,12 @@ Start with the setup helper, especially after `pip install --user` or Codex MCP 
 ```
 
 The base package intentionally does **not** install Playwright. Do not make `auth-login` the first instruction after a base install. Configure a Cookie header first, or install the optional browser extra before using browser login.
+
+If `auth-check` returns HTTP 403, it usually means either auth is still missing/expired or Eight/Cloudflare rejected the plain HTTP transport. Re-run `auth-setup`, configure a valid cookie, and if the cookie is known-good use the `[cloudflare]` extra:
+
+```bash
+python -m pip install --user 'eight-mcp-community[cloudflare]'
+```
 
 Supported credential lookup order:
 

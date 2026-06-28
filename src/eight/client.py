@@ -13,6 +13,7 @@ from .extract import extract_network_people, extract_personal_cards
 from .html import parse_tokens
 from .http import create_http_session
 from .models import CardResult, SearchResult
+from .setup_help import forbidden_guidance
 
 LOGIN_URL = "https://8card.net/login"
 MYHOME_URL = "https://8card.net/myhome"
@@ -105,6 +106,8 @@ class EightClient:
 
     def get_csrf(self) -> str | None:
         response = self.session.get(MYHOME_URL, timeout=self.timeout, allow_redirects=True)
+        if response.status_code == 403:
+            raise AuthRequiredError(forbidden_guidance())
         response.raise_for_status()
         if "/login" in response.url or "ログイン" in response.text[:5000]:
             return None

@@ -14,6 +14,9 @@ def test_auth_setup_help_recommends_cookie_first_and_browser_extra() -> None:
         in help_payload["commands"]["setCookie"]
     )
     assert "auth-login" not in help_payload["commands"]["setCookie"]
+    assert "auth-check" not in help_payload["commands"]
+    assert "auth-check" in help_payload["commands"]["verifyAfterSetup"]
+    assert "after" in help_payload["commands"]["verifyAfterSetup"].lower()
     assert "eight-mcp-community[browser]" in help_payload["commands"]["installBrowserExtra"]
     assert "python -m playwright install chromium" in help_payload["commands"]["installChromium"]
     assert any("restart" in note.lower() for note in help_payload["notes"])
@@ -41,3 +44,13 @@ def test_browser_login_availability_requires_importable_sync_api(monkeypatch) ->
     monkeypatch.setattr(setup_help, "import_module", fake_import_module)
 
     assert setup_help.is_browser_login_available() is False
+
+
+def test_auth_setup_help_includes_agent_install_message_template() -> None:
+    help_payload = auth_setup_help(command="/Users/new-village/.local/bin/eight-mcp-community")
+
+    message = help_payload["agentPostInstallMessage"]
+    assert "auth-setup" in message
+    assert "auth-check は設定後の確認用" in message
+    assert "set-cookie 'your 8card.net Cookie header'" in message
+    assert "set-cookie 'your <http" not in message
