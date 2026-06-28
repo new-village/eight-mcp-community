@@ -12,7 +12,7 @@ CONFIG_ENV = "EIGHT_MCP_COMMUNITY_CONFIG"
 COOKIE_ENV = "EIGHT_COOKIE"
 SESSION_COOKIE_ENV = "EIGHT_SESSION_COOKIE"
 COOKIE_FILE_ENV = "EIGHT_COOKIE_FILE"
-LEGACY_COOKIE_FILE = Path("/opt/data/private/eight/cookies.txt")
+
 
 
 @dataclass(frozen=True)
@@ -53,9 +53,6 @@ def read_credentials() -> CredentialSource:
 
     if cookie_file := os.environ.get(COOKIE_FILE_ENV):
         return CredentialSource(source="cookie_file", cookie_file=Path(cookie_file).expanduser())
-    if LEGACY_COOKIE_FILE.exists():
-        return CredentialSource(source="legacy_cookie_file", cookie_file=LEGACY_COOKIE_FILE)
-
     if os.environ.get("EIGHT_EMAIL") and os.environ.get("EIGHT_PASSWORD"):
         return CredentialSource(source="env:EIGHT_EMAIL_PASSWORD", config_path=path)
 

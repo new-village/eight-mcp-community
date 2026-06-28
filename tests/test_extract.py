@@ -9,8 +9,8 @@ def test_extract_personal_cards_minimal_fields() -> None:
                     "personal_cards": [
                         {
                             "friend_card": {
-                                "front_full_name": "山田 太郎",
-                                "front_company_name": "Example Bank",
+                                "front_full_name": "鈴木 太郎",
+                                "front_company_name": "東京商事",
                                 "front_department": "Compliance",
                                 "front_title": "Director",
                             },
@@ -27,8 +27,8 @@ def test_extract_personal_cards_minimal_fields() -> None:
     assert [row.to_safe_dict() for row in rows] == [
         {
             "source": "Eight: 登録名刺",
-            "name": "山田 太郎",
-            "company": "Example Bank",
+            "name": "鈴木 太郎",
+            "company": "東京商事",
             "department": "Compliance",
             "title": "Director",
             "updated": "2026-06-01",

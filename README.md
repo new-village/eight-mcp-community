@@ -20,7 +20,7 @@ The core client is reusable without an LLM:
 from eight import EightClient
 
 client = EightClient.from_default_config()
-result = client.search_person("山田太郎 みずほ")
+result = client.search_person("鈴木太郎 東京商事")
 print(result.to_safe_dict())
 ```
 
@@ -83,8 +83,7 @@ Supported credential lookup order:
 3. `EIGHT_MCP_COMMUNITY_CONFIG` — path to config JSON with a `cookie` field
 4. Default config file: `~/.config/eight-mcp-community/config.json`
 5. `EIGHT_COOKIE_FILE` — Mozilla/Netscape cookie jar path
-6. Legacy private cookie file when present: `/opt/data/private/eight/cookies.txt`
-7. Optional env login: `EIGHT_EMAIL` + `EIGHT_PASSWORD`
+6. Optional env login: `EIGHT_EMAIL` + `EIGHT_PASSWORD`
 
 For remote/server use, prefer a cookie config or env secret. The package does not require browser automation.
 
@@ -110,8 +109,8 @@ eight-mcp-community auth-status
 eight-mcp-community auth-check
 eight-mcp-community set-cookie 'Cookie header'
 eight-mcp-community clear-cookie
-eight-mcp-community search '三好'
-eight-mcp-community search '三好' --always-network
+eight-mcp-community search '鈴木'
+eight-mcp-community search '鈴木' --always-network
 eight-mcp-community serve
 ```
 
