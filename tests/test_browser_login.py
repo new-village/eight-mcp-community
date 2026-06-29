@@ -47,3 +47,40 @@ def test_cookie_authentication_accepts_myhome_with_csrf_token(monkeypatch) -> No
     )
 
     assert browser_login.cookie_authenticates("session=abc") is True
+
+
+def test_cookie_authentication_diagnostics_include_cloudflare_like_failure(monkeypatch) -> None:
+    _install_fake_session(
+        monkeypatch,
+        SimpleNamespace(
+            status_code=403,
+            url="https://8card.net/myhome",
+            text="<html><title>Just a moment...</title>Cloudflare</html>",
+        ),
+    )
+
+    result = browser_login.check_cookie_authentication("session=abc")
+
+    assert result["authenticated"] is False
+    assert result["reason"] == "http_status"
+    assert result["statusCode"] == 403
+    assert result["finalUrl"] == "https://8card.net/myhome"
+    assert result["cloudflareLike"] is True
+
+
+def test_auth_login_timeout_message_points_to_cloudflare_extra_when_cookie_was_seen() -> None:
+    message = browser_login.auth_login_timeout_message(
+        180,
+        {
+            "authenticated": False,
+            "reason": "http_status",
+            "statusCode": 403,
+            "finalUrl": "https://8card.net/myhome",
+            "cloudflareLike": True,
+        },
+    )
+
+    assert "browser cookie was captured" in message
+    assert "verification HTTP" in message
+    assert "eight-mcp-community[cloudflare]" in message
+    assert "status=403" in message

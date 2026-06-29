@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from eight import mcp_server
 
 
@@ -18,24 +20,39 @@ def test_only_three_auth_tools_are_exposed() -> None:
     assert not hasattr(mcp_server, "eight_login_help")
 
 
-def test_auth_login_delegates_to_browser_login_and_set_cookie(monkeypatch) -> None:
-    calls: list[tuple[str, object]] = []
+def test_auth_login_runs_cli_in_subprocess_to_avoid_asyncio_playwright_conflict(
+    monkeypatch,
+) -> None:
+    calls: list[dict[str, object]] = []
 
-    def fake_run_browser_login(*, headless: bool, timeout_seconds: int) -> str:
-        calls.append(("browser", {"headless": headless, "timeout_seconds": timeout_seconds}))
-        return "session=from_browser"
+    def fake_run(command, **kwargs):  # noqa: ANN001
+        calls.append({"command": command, **kwargs})
+        return SimpleNamespace(
+            returncode=0,
+            stdout='{"authenticated": true, "saved": true}\n',
+            stderr="",
+        )
 
-    def fake_set_cookie(cookie: str, verify: bool = True) -> dict[str, object]:
-        calls.append(("set_cookie", {"cookie": cookie, "verify": verify}))
-        return {"saved": True, "authenticated": True}
-
-    monkeypatch.setattr(mcp_server, "run_browser_login", fake_run_browser_login)
-    monkeypatch.setattr(mcp_server, "_set_cookie", fake_set_cookie)
+    monkeypatch.setattr(mcp_server.subprocess, "run", fake_run)
 
     result = mcp_server.eight_auth_login(headless=True, timeoutSeconds=45)
 
-    assert result == {"saved": True, "authenticated": True}
-    assert calls == [
-        ("browser", {"headless": True, "timeout_seconds": 45}),
-        ("set_cookie", {"cookie": "session=from_browser", "verify": True}),
-    ]
+    assert result == {"authenticated": True, "saved": True}
+    command = calls[0]["command"]
+    assert command[:3] == [mcp_server.sys.executable, "-m", "eight"]
+    assert "auth-login" in command
+    assert "--headless" in command
+    assert "--timeout-seconds" in command
+    assert calls[0]["timeout"] == 75
+
+
+def test_auth_login_subprocess_reports_non_json_failure(monkeypatch) -> None:
+    def fake_run(_command, **_kwargs):  # noqa: ANN001
+        return SimpleNamespace(returncode=1, stdout="", stderr="boom")
+
+    monkeypatch.setattr(mcp_server.subprocess, "run", fake_run)
+
+    result = mcp_server.eight_auth_login()
+
+    assert result["error"] == "auth_login_failed"
+    assert "boom" in result["message"]

@@ -77,6 +77,9 @@ codex mcp add eight -- eight-mcp-community serve
 # pip --user / absolute-path style
 codex mcp add eight -- /Users/you/.local/bin/eight-mcp-community serve
 
+# module form, useful when the command is not on PATH
+codex mcp add eight -- python3 -m eight serve
+
 # Cloudflare-resistant transport via uvx
 codex mcp add eight -- uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve
 ```
@@ -88,7 +91,7 @@ Recommended post-install message for agents:
 ```text
 Eight MCP registration is installed. Authentication is intentionally simple:
 1. Check current state: /Users/you/.local/bin/eight-mcp-community auth-status
-2. If no cookie is configured, log in with Playwright: /Users/you/.local/bin/eight-mcp-community auth-login
+2. If no cookie is configured, log in with Playwright. Recommended install for Eight login reliability: python -m pip install --user 'eight-mcp-community[browser,cloudflare]' && python -m playwright install chromium
 3. If you already have a trusted Cookie header, save it directly: /Users/you/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
 If a known-good cookie returns 403, use/install eight-mcp-community[cloudflare]. Restart Codex or the MCP client after package/auth/config changes.
 ```
@@ -120,13 +123,15 @@ The authentication surface is intentionally small:
 2. `auth-login` uses Playwright for an interactive browser login, captures 8card.net cookies, and saves them.
 3. `set-cookie` saves a trusted Cookie header supplied from outside the MCP flow.
 
-Unless you provide a Cookie header via `set-cookie` or `EIGHT_COOKIE`, logging in requires Playwright:
+Unless you provide a Cookie header via `set-cookie` or `EIGHT_COOKIE`, logging in requires Playwright. For Eight, installing both `browser` and `cloudflare` extras is recommended because the final cookie verification may need Chrome-like HTTP transport:
 
 ```bash
-python -m pip install --user 'eight-mcp-community[browser]'
+python -m pip install --user 'eight-mcp-community[browser,cloudflare]'
 python -m playwright install chromium
 ~/.local/bin/eight-mcp-community auth-login
 ```
+
+The MCP `eight_auth_login` tool runs the CLI login flow in a subprocess so Playwright does not collide with the MCP server's asyncio loop.
 
 If Playwright's browser binary is missing, install it once on the same machine/user account:
 
@@ -147,7 +152,7 @@ Supported credential lookup order:
 2. `EIGHT_MCP_COMMUNITY_CONFIG` — path to config JSON with a `cookie` field
 3. Default config file: `~/.config/eight-mcp-community/config.json`
 
-If a known-good cookie returns HTTP 403, Eight/Cloudflare may be rejecting the plain HTTP transport. Use the `[cloudflare]` extra and restart the MCP client:
+If `auth-login` times out after the browser reached `/myhome`, the cookie was probably captured but the verification HTTP request failed. The timeout message includes the last non-secret diagnostic (`reason`, HTTP status, final URL, and Cloudflare-like signal). Use the `[cloudflare]` extra and restart the MCP client:
 
 ```bash
 python -m pip install --user 'eight-mcp-community[cloudflare]'

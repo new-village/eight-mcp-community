@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from . import auth
-from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
 
@@ -20,6 +22,41 @@ def _set_cookie(cookie: str, verify: bool = True) -> dict[str, Any]:
     return auth.set_cookie(cookie, verify=verify)
 
 
+def _run_auth_login_subprocess(
+    *, headless: bool = False, timeout_seconds: int = 180
+) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        "-m",
+        "eight",
+        "auth-login",
+        "--timeout-seconds",
+        str(timeout_seconds),
+    ]
+    if headless:
+        command.append("--headless")
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds + 30,
+        check=False,
+    )
+    if completed.stdout.strip():
+        try:
+            return json.loads(completed.stdout)
+        except json.JSONDecodeError:
+            pass
+    if completed.returncode != 0:
+        message = (completed.stderr or completed.stdout or "auth-login subprocess failed").strip()
+        return {"error": "auth_login_failed", "type": "SubprocessError", "message": message}
+    return {
+        "error": "auth_login_failed",
+        "type": "SubprocessError",
+        "message": "auth-login subprocess did not return JSON",
+    }
+
+
 @mcp.tool()
 def eight_auth_status() -> dict[str, Any]:
     """Check whether Eight authentication is configured and currently usable."""
@@ -28,10 +65,9 @@ def eight_auth_status() -> dict[str, Any]:
 
 @mcp.tool()
 def eight_auth_login(headless: bool = False, timeoutSeconds: int = 180) -> dict[str, Any]:
-    """Open a Playwright browser login flow, capture Eight cookies, and save them."""
+    """Run CLI browser login in a subprocess, capture Eight cookies, and save them."""
     try:
-        cookie = run_browser_login(headless=headless, timeout_seconds=timeoutSeconds)
-        return _set_cookie(cookie, verify=True)
+        return _run_auth_login_subprocess(headless=headless, timeout_seconds=timeoutSeconds)
     except Exception as exc:  # noqa: BLE001
         return error_detail(exc)
 
