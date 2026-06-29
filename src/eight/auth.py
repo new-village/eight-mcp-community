@@ -3,22 +3,24 @@ from __future__ import annotations
 import json
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 PACKAGE_NAME = "eight-mcp-community"
 CONFIG_ENV = "EIGHT_MCP_COMMUNITY_CONFIG"
 COOKIE_ENV = "EIGHT_COOKIE"
-SESSION_COOKIE_ENV = "EIGHT_SESSION_COOKIE"
-COOKIE_FILE_ENV = "EIGHT_COOKIE_FILE"
+
+
+class AuthStatusClient(Protocol):
+    def auth_status_for_cookie(self, cookie: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
 class CredentialSource:
     source: str
     cookie: str | None = None
-    cookie_file: Path | None = None
     config_path: Path | None = None
 
 
@@ -41,21 +43,73 @@ def _read_config(path: Path) -> dict[str, Any]:
 
 def read_credentials() -> CredentialSource:
     if cookie := os.environ.get(COOKIE_ENV):
-        return CredentialSource(source="env:EIGHT_COOKIE", cookie=cookie)
-    if cookie := os.environ.get(SESSION_COOKIE_ENV):
-        return CredentialSource(source="env:EIGHT_SESSION_COOKIE", cookie=cookie)
+        return CredentialSource(source="env:EIGHT_COOKIE", cookie=cookie, config_path=config_path())
 
     path = config_path()
     data = _read_config(path)
     if cookie := data.get("cookie"):
         return CredentialSource(source="config", cookie=str(cookie), config_path=path)
 
-    if cookie_file := os.environ.get(COOKIE_FILE_ENV):
-        return CredentialSource(source="cookie_file", cookie_file=Path(cookie_file).expanduser())
-    if os.environ.get("EIGHT_EMAIL") and os.environ.get("EIGHT_PASSWORD"):
-        return CredentialSource(source="env:EIGHT_EMAIL_PASSWORD", config_path=path)
-
     return CredentialSource(source="none", config_path=path)
+
+
+def auth_status(*, client_factory: Callable[[], AuthStatusClient] | None = None) -> dict[str, Any]:
+    """Return whether Eight auth is configured and currently usable."""
+    creds = read_credentials()
+    base: dict[str, Any] = {
+        "configured": bool(creds.cookie),
+        "authenticated": False,
+        "source": creds.source,
+        "configPath": str(config_path()),
+    }
+    if not creds.cookie:
+        return {
+            **base,
+            "status": "setup_required",
+            "nextAction": "Run eight_auth_login or eight_set_cookie.",
+        }
+
+    base["cookiePreview"] = preview_cookie(creds.cookie)
+    try:
+        client = client_factory() if client_factory else _default_client()
+        live = client.auth_status_for_cookie(creds.cookie)
+    except Exception as exc:  # noqa: BLE001 - auth status should be diagnostic, not fatal.
+        return {
+            **base,
+            "status": "auth_failed",
+            "errorType": type(exc).__name__,
+            "message": str(exc),
+            "nextAction": "Run eight_auth_login or eight_set_cookie with a fresh cookie.",
+        }
+
+    authenticated = bool(live.get("authenticated"))
+    return {
+        **base,
+        **live,
+        "authenticated": authenticated,
+        "status": "ok" if authenticated else "auth_failed",
+    }
+
+
+def set_cookie(
+    cookie: str,
+    *,
+    verify: bool = True,
+    client_factory: Callable[[], AuthStatusClient] | None = None,
+) -> dict[str, Any]:
+    """Store a Cookie header in the config file, verifying it by default."""
+    if not cookie:
+        raise ValueError("Cookie header is required.")
+
+    live: dict[str, Any] = {}
+    if verify:
+        client = client_factory() if client_factory else _default_client()
+        live = client.auth_status_for_cookie(cookie)
+        if not live.get("authenticated"):
+            raise ValueError("Cookie did not authenticate with Eight.")
+
+    saved = save_cookie(cookie)
+    return {"authenticated": bool(live.get("authenticated", False)), **live, **saved}
 
 
 def save_cookie(cookie: str, path: Path | None = None) -> dict[str, Any]:
@@ -75,38 +129,14 @@ def save_cookie(cookie: str, path: Path | None = None) -> dict[str, Any]:
     }
 
 
-def clear_stored_cookie(path: Path | None = None) -> dict[str, Any]:
-    target = path or config_path()
-    if not target.exists():
-        return {"cleared": False, "configPath": str(target), "message": "No config file exists."}
-    data = _read_config(target)
-    if "cookie" not in data:
-        return {"cleared": False, "configPath": str(target), "message": "No cookie was stored."}
-    data.pop("cookie", None)
-    if data:
-        target.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    else:
-        target.unlink()
-    return {"cleared": True, "configPath": str(target)}
-
-
-def auth_status() -> dict[str, Any]:
-    creds = read_credentials()
-    data: dict[str, Any] = {
-        "configured": creds.source != "none",
-        "source": creds.source,
-        "configPath": str(config_path()),
-    }
-    if creds.cookie:
-        data["cookiePreview"] = preview_cookie(creds.cookie)
-    if creds.cookie_file:
-        data["cookieFile"] = str(creds.cookie_file)
-        data["cookieFileExists"] = creds.cookie_file.exists()
-    return data
-
-
 def preview_cookie(cookie: str) -> str:
     compact = " ".join(cookie.split())
     if len(compact) <= 16:
         return "<redacted>"
     return f"{compact[:6]}…{compact[-6:]}"
+
+
+def _default_client() -> AuthStatusClient:
+    from .client import EightClient
+
+    return EightClient()

@@ -9,13 +9,7 @@ from . import auth
 from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
-from .login_setup import save_cookie_from_password_login
 from .mcp_server import run as run_mcp_server
-from .setup_help import (
-    auth_setup_help,
-    browser_login_unavailable_response,
-    is_browser_login_available,
-)
 
 
 def json_print(value: Any) -> None:
@@ -27,27 +21,15 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("serve", help="Run the stdio MCP server")
-    sub.add_parser("auth-status", help="Show authentication status without leaking secrets")
-    sub.add_parser("auth-setup", help="Show recommended authentication setup steps")
-    sub.add_parser("auth-check", help="Verify Eight authentication")
-    sub.add_parser("clear-cookie", help="Delete stored config-file cookie")
+    sub.add_parser("auth-status", help="Check whether Eight authentication is usable")
 
-    set_cookie = sub.add_parser("set-cookie", help="Store a Cookie header in the config file")
-    set_cookie.add_argument("cookie", nargs="?", help="8card.net Cookie header")
-    set_cookie.add_argument("--email", "-email", help="Eight login email address")
-    set_cookie.add_argument("--password", "-password", help="Eight login password")
-    set_cookie.add_argument(
-        "--browser-login",
-        action="store_true",
-        help="Open a Playwright browser login flow and save cookies",
-    )
-    set_cookie.add_argument("--headless", action="store_true", help="Use headless browser login")
-    set_cookie.add_argument("--timeout-seconds", type=int, default=180)
-    set_cookie.add_argument("--no-verify", action="store_true", help="Save without verifying first")
-
-    auth_login = sub.add_parser("auth-login", help="Open a browser login flow and save cookies")
+    auth_login = sub.add_parser("auth-login", help="Log in with Playwright and save cookies")
     auth_login.add_argument("--headless", action="store_true")
     auth_login.add_argument("--timeout-seconds", type=int, default=180)
+
+    set_cookie = sub.add_parser("set-cookie", help="Store a Cookie header in the config file")
+    set_cookie.add_argument("cookie", help="8card.net Cookie header")
+    set_cookie.add_argument("--no-verify", action="store_true", help="Save without verifying first")
 
     search = sub.add_parser("search", help="Search Eight person cards/network")
     search.add_argument("query")
@@ -73,26 +55,14 @@ def main(argv: list[str] | None = None) -> None:
             run_mcp_server()
         elif command == "auth-status":
             json_print(auth.auth_status())
-        elif command == "auth-setup":
-            json_print(auth_setup_help(command=_invoked_command(argv, parser.prog)))
-        elif command == "auth-check":
-            json_print(EightClient.from_default_config().auth_check())
-        elif command == "set-cookie":
-            json_print(_run_set_cookie(args))
         elif command == "auth-login":
-            if not is_browser_login_available():
-                json_print(
-                    browser_login_unavailable_response(command=_invoked_command(argv, parser.prog))
-                )
-            else:
-                json_print(
-                    run_browser_login(
-                        headless=args.headless,
-                        timeout_seconds=args.timeout_seconds,
-                    )
-                )
-        elif command == "clear-cookie":
-            json_print(auth.clear_stored_cookie())
+            cookie = run_browser_login(
+                headless=args.headless,
+                timeout_seconds=args.timeout_seconds,
+            )
+            json_print(auth.set_cookie(cookie, verify=True))
+        elif command == "set-cookie":
+            json_print(auth.set_cookie(args.cookie, verify=not args.no_verify))
         elif command == "search":
             result = EightClient.from_default_config().search_person(
                 args.query,
@@ -119,37 +89,6 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as exc:  # noqa: BLE001 - CLI should emit JSON failure.
         json_print(error_detail(exc))
         sys.exit(1)
-
-
-def _run_set_cookie(args: argparse.Namespace) -> dict[str, Any]:
-    if args.cookie:
-        if not args.no_verify:
-            client = EightClient()
-            client.session.headers["Cookie"] = args.cookie
-            client.auth_check()
-        return auth.save_cookie(args.cookie)
-
-    if args.email or args.password:
-        return save_cookie_from_password_login(args.email, args.password)
-
-    if args.browser_login:
-        if not is_browser_login_available():
-            return browser_login_unavailable_response(command="eight-mcp-community")
-        return run_browser_login(headless=args.headless, timeout_seconds=args.timeout_seconds)
-
-    raise ValueError(
-        "Provide a Cookie header or --email/--password. Browser login requires the "
-        "optional [browser] extra. "
-        "Examples: eight-mcp-community set-cookie 'cookie'; "
-        "eight-mcp-community set-cookie --email you@example.com --password '...'; "
-        "eight-mcp-community auth-setup"
-    )
-
-
-def _invoked_command(argv: list[str] | None, fallback: str) -> str:
-    if argv is None and sys.argv:
-        return sys.argv[0]
-    return fallback
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ def test_cookie_authentication_requires_successful_status(monkeypatch) -> None:
         SimpleNamespace(status_code=403, url="https://8card.net/myhome", text="Forbidden"),
     )
 
-    assert browser_login._cookie_authenticates("session=abc") is False
+    assert browser_login.cookie_authenticates("session=abc") is False
 
 
 def test_cookie_authentication_requires_csrf_token(monkeypatch) -> None:
@@ -33,7 +33,7 @@ def test_cookie_authentication_requires_csrf_token(monkeypatch) -> None:
         SimpleNamespace(status_code=200, url="https://8card.net/myhome", text="<html>home</html>"),
     )
 
-    assert browser_login._cookie_authenticates("session=abc") is False
+    assert browser_login.cookie_authenticates("session=abc") is False
 
 
 def test_cookie_authentication_accepts_myhome_with_csrf_token(monkeypatch) -> None:
@@ -46,4 +46,4 @@ def test_cookie_authentication_accepts_myhome_with_csrf_token(monkeypatch) -> No
         ),
     )
 
-    assert browser_login._cookie_authenticates("session=abc") is True
+    assert browser_login.cookie_authenticates("session=abc") is True

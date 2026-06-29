@@ -3,7 +3,7 @@
 Unofficial Python client and stdio MCP server for Eight person-search workflows.
 
 > [!WARNING]
-> This project is unofficial and not affiliated with Eight or Sansan. It uses private/internal web endpoints that can change without notice. Keep cookies, passwords, and raw contact data out of GitHub, logs, issues, prompts, and public reports.
+> This project is unofficial and not affiliated with Eight or Sansan. It uses private/internal web endpoints that can change without notice. Keep cookies, credentials, and raw contact data out of GitHub, logs, issues, prompts, and public reports.
 
 ## Design
 
@@ -86,16 +86,12 @@ After package upgrades, optional dependency changes, authentication changes, or 
 Recommended post-install message for agents:
 
 ```text
-Eight MCP registration is installed, but Eight authentication is not configured yet.
-First run setup guidance: /Users/you/.local/bin/eight-mcp-community auth-setup
-To configure auth, choose one setup path:
-1. Cookie header: /Users/you/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
-2. Password login: /Users/you/.local/bin/eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
-auth-check は設定後の確認用です: /Users/you/.local/bin/eight-mcp-community auth-check
-If auth-check returns 403 even with a valid cookie, use/install eight-mcp-community[cloudflare]. Restart Codex or the MCP client after changes.
+Eight MCP registration is installed. Authentication is intentionally simple:
+1. Check current state: /Users/you/.local/bin/eight-mcp-community auth-status
+2. If no cookie is configured, log in with Playwright: /Users/you/.local/bin/eight-mcp-community auth-login
+3. If you already have a trusted Cookie header, save it directly: /Users/you/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
+If a known-good cookie returns 403, use/install eight-mcp-community[cloudflare]. Restart Codex or the MCP client after package/auth/config changes.
 ```
-
-Do not list `auth-check` as a way to configure cookies; it only verifies an already configured cookie/session.
 
 Local development MCP config:
 
@@ -118,47 +114,13 @@ Local development MCP config:
 
 ## Authentication
 
-Start with the setup helper, especially after `pip install --user` or Codex MCP registration:
+The authentication surface is intentionally small:
 
-```bash
-~/.local/bin/eight-mcp-community auth-setup
-```
+1. `auth-status` checks whether a Cookie header is configured and whether it can currently access Eight.
+2. `auth-login` uses Playwright for an interactive browser login, captures 8card.net cookies, and saves them.
+3. `set-cookie` saves a trusted Cookie header supplied from outside the MCP flow.
 
-The base package intentionally does **not** install Playwright. Do not make `auth-login` the first instruction after a base install. Configure a Cookie header first, or install the optional browser extra before using browser login.
-
-If `auth-check` returns HTTP 403, it usually means either auth is still missing/expired or Eight/Cloudflare rejected the plain HTTP transport. Re-run `auth-setup`, configure a valid cookie, and if the cookie is known-good use the `[cloudflare]` extra:
-
-```bash
-python -m pip install --user 'eight-mcp-community[cloudflare]'
-```
-
-Supported credential lookup order:
-
-1. `EIGHT_COOKIE` — Cookie header
-2. `EIGHT_SESSION_COOKIE` — alternate Cookie header
-3. `EIGHT_MCP_COMMUNITY_CONFIG` — path to config JSON with a `cookie` field
-4. Default config file: `~/.config/eight-mcp-community/config.json`
-5. `EIGHT_COOKIE_FILE` — Mozilla/Netscape cookie jar path
-6. Optional env login: `EIGHT_EMAIL` + `EIGHT_PASSWORD`
-
-For remote/server use, prefer a cookie config or env secret. The package does not require browser automation.
-
-Create a config file from a trusted Cookie header:
-
-```bash
-~/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
-~/.local/bin/eight-mcp-community auth-check
-```
-
-If you do not have a Cookie header, you can ask the CLI to log in and save cookies:
-
-```bash
-~/.local/bin/eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
-```
-
-`--email` and `--password` are used only for the login request. The config file stores the resulting Cookie header, not the email or password.
-
-Eight may require MFA or another browser challenge. In that case, install the optional browser extra before using the browser login flow:
+Unless you provide a Cookie header via `set-cookie` or `EIGHT_COOKIE`, logging in requires Playwright:
 
 ```bash
 python -m pip install --user 'eight-mcp-community[browser]'
@@ -166,34 +128,37 @@ python -m playwright install chromium
 ~/.local/bin/eight-mcp-community auth-login
 ```
 
-Browser login is optional and only installed through the `[browser]` extra. The standard CLI/MCP path does not depend on Playwright. If you run `auth-login` from a base install, it prints JSON setup guidance instead of a traceback.
-
 If Playwright's browser binary is missing, install it once on the same machine/user account:
 
 ```bash
 python -m playwright install chromium
 ```
 
-Or use env:
+Create or overwrite the config file from a trusted Cookie header:
 
 ```bash
-EIGHT_COOKIE='<COOKIE_HEADER>' eight-mcp-community auth-check
+~/.local/bin/eight-mcp-community set-cookie '<COOKIE_HEADER>'
+~/.local/bin/eight-mcp-community auth-status
 ```
 
-If `EIGHT_EMAIL` and `EIGHT_PASSWORD` are set, the client can perform the same password-login flow used by the existing Hermes skill and save resulting cookies into the default config as a Cookie header. MFA/challenge responses are reported as structured errors and are not bypassed.
+Supported credential lookup order:
+
+1. `EIGHT_COOKIE` — externally supplied Cookie header
+2. `EIGHT_MCP_COMMUNITY_CONFIG` — path to config JSON with a `cookie` field
+3. Default config file: `~/.config/eight-mcp-community/config.json`
+
+If a known-good cookie returns HTTP 403, Eight/Cloudflare may be rejecting the plain HTTP transport. Use the `[cloudflare]` extra and restart the MCP client:
+
+```bash
+python -m pip install --user 'eight-mcp-community[cloudflare]'
+```
 
 ## CLI
 
 ```bash
-eight-mcp-community auth-setup
 eight-mcp-community auth-status
-eight-mcp-community auth-check
-eight-mcp-community set-cookie 'Cookie header'
-eight-mcp-community set-cookie --email '<EIGHT_LOGIN_EMAIL>' --password '<EIGHT_LOGIN_PASSWORD>'
-python -m pip install --user 'eight-mcp-community[browser]'
-python -m playwright install chromium
 eight-mcp-community auth-login
-eight-mcp-community clear-cookie
+eight-mcp-community set-cookie 'Cookie header'
 eight-mcp-community search '鈴木'
 eight-mcp-community search '鈴木' --always-network
 eight-mcp-community serve
@@ -203,15 +168,11 @@ All command output is JSON except `--help`.
 
 ## MCP tools
 
-Authentication/setup tools:
+Authentication tools:
 
-- `eight_auth_status` — report whether auth is configured and from where, without leaking secrets
-- `eight_auth_setup` — return recommended setup steps; use this before telling users to run browser login
-- `eight_auth_check` — verify access to Eight `/myhome` and CSRF extraction
-- `eight_set_cookie` — store a Cookie header in the local config file, or log in with `email`/`password` and save cookies
-- `eight_auth_login_browser` — open a Playwright browser login flow and save cookies locally after verifying `/myhome` status and CSRF token presence
-- `eight_clear_cookie` — delete the stored config-file cookie
-- `eight_login_help` — explain supported setup paths
+- `eight_auth_status` — check whether auth is configured and whether the current Cookie can access Eight
+- `eight_auth_login` — open a Playwright browser login flow, capture cookies, and save them through `eight_set_cookie`
+- `eight_set_cookie` — store a trusted Cookie header in the local MCP config file
 
 Search tools:
 

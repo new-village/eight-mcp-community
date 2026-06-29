@@ -3,30 +3,24 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from . import auth
 from .client import MYHOME_URL
 from .errors import AuthRequiredError
 from .html import parse_tokens
 from .http import create_http_session
-from .setup_help import browser_login_unavailable_response
 
 LOGIN_URL = "https://8card.net/login"
 
 
-def run_browser_login(*, headless: bool = False, timeout_seconds: int = 180) -> dict[str, Any]:
-    """Open a Playwright browser, let the operator log in, then save 8card cookies."""
+def run_browser_login(*, headless: bool = False, timeout_seconds: int = 180) -> str:
+    """Open Playwright, wait for an authenticated Eight login, and return a Cookie header."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
-        setup = browser_login_unavailable_response()
         raise AuthRequiredError(
-            setup["message"]
-            + " Next steps: "
-            + setup["commands"]["setCookie"]
-            + " OR "
-            + setup["commands"]["installBrowserExtra"]
-            + "; "
-            + setup["commands"]["installChromium"]
+            "eight_auth_login requires Playwright. Install the browser extra and Chromium: "
+            "python -m pip install --user 'eight-mcp-community[browser]' && "
+            "python -m playwright install chromium. Or provide a Cookie header via "
+            "eight_set_cookie."
         ) from exc
 
     deadline = time.monotonic() + timeout_seconds
@@ -44,16 +38,10 @@ def run_browser_login(*, headless: bool = False, timeout_seconds: int = 180) -> 
         page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
         while time.monotonic() < deadline:
-            cookie_header = _cookie_header_from_playwright(context.cookies())
-            if cookie_header and _cookie_authenticates(cookie_header):
+            cookie_header = cookie_header_from_playwright(context.cookies())
+            if cookie_header and cookie_authenticates(cookie_header):
                 browser.close()
-                saved = auth.save_cookie(cookie_header)
-                return {
-                    "authenticated": True,
-                    "saved": True,
-                    **saved,
-                    "message": "Eight authentication configured from browser login.",
-                }
+                return cookie_header
             page.wait_for_timeout(1000)
 
         browser.close()
@@ -63,7 +51,7 @@ def run_browser_login(*, headless: bool = False, timeout_seconds: int = 180) -> 
     )
 
 
-def _cookie_header_from_playwright(cookies: list[dict[str, Any]]) -> str:
+def cookie_header_from_playwright(cookies: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for cookie in cookies:
         domain = str(cookie.get("domain") or "")
@@ -76,7 +64,7 @@ def _cookie_header_from_playwright(cookies: list[dict[str, Any]]) -> str:
     return "; ".join(parts)
 
 
-def _cookie_authenticates(cookie_header: str) -> bool:
+def cookie_authenticates(cookie_header: str) -> bool:
     session = create_http_session()
     session.headers.update(
         {

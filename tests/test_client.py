@@ -18,17 +18,17 @@ class ForbiddenSession:
         return response
 
 
-def test_auth_check_403_raises_actionable_auth_required_error() -> None:
+def test_auth_status_for_cookie_403_raises_actionable_auth_required_error() -> None:
     client = EightClient(session=ForbiddenSession())  # type: ignore[arg-type]
 
     try:
-        client.auth_check()
+        client.auth_status_for_cookie("session=abc")
     except AuthRequiredError as error:
         message = str(error)
     else:  # pragma: no cover
         raise AssertionError("Expected AuthRequiredError")
 
     assert "403" in message
-    assert "auth-setup" in message
-    assert "set-cookie" in message
+    assert "eight_auth_login" in message
+    assert "eight_set_cookie" in message
     assert "eight-mcp-community[cloudflare]" in message

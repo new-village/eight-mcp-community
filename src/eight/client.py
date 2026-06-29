@@ -1,24 +1,29 @@
 from __future__ import annotations
 
-import os
-from http.cookiejar import MozillaCookieJar
-from pathlib import Path
 from typing import Any
 
 import requests
 
 from . import auth
-from .errors import AuthRequiredError, EightApiError, LoginChallengeError, MfaRequiredError
+from .errors import AuthRequiredError, EightApiError
 from .extract import extract_network_people, extract_personal_cards
 from .html import parse_tokens
 from .http import create_http_session
 from .models import CardResult, SearchResult
-from .setup_help import forbidden_guidance
 
-LOGIN_URL = "https://8card.net/login"
 MYHOME_URL = "https://8card.net/myhome"
 SEARCH_PERSONAL_CARDS_URL = "https://8card.net/search_contacts/search_personal_cards"
 SEARCH_EIGHT_NETWORKS_URL = "https://8card.net/search_contacts/search_eight_networks"
+
+
+def forbidden_guidance() -> str:
+    return (
+        "Eight /myhome returned HTTP 403. Authentication may be missing or expired, "
+        "or Eight/Cloudflare may be blocking the plain requests transport. "
+        "Run eight_auth_login to refresh cookies, or eight_set_cookie with a valid Cookie header. "
+        "If the cookie is valid but 403 persists, install/use eight-mcp-community[cloudflare] "
+        "and restart the MCP client."
+    )
 
 
 class EightClient:
@@ -36,73 +41,22 @@ class EightClient:
         creds = auth.read_credentials()
         if creds.cookie:
             self.session.headers["Cookie"] = creds.cookie
-        elif creds.cookie_file:
-            self._load_cookie_file(creds.cookie_file)
         return creds
 
-    def auth_check(self) -> dict[str, Any]:
+    def auth_status_for_cookie(self, cookie: str) -> dict[str, Any]:
+        self.session.headers["Cookie"] = cookie
         csrf = self.ensure_auth()
-        return {"authenticated": True, "csrfAvailable": bool(csrf), **auth.auth_status()}
+        return {"authenticated": True, "csrfAvailable": bool(csrf)}
 
     def ensure_auth(self) -> str:
         csrf = self.get_csrf()
         if csrf:
             return csrf
-
-        email = os.environ.get("EIGHT_EMAIL")
-        password = os.environ.get("EIGHT_PASSWORD")
-        if not email or not password:
-            raise AuthRequiredError(
-                "Eight authentication is not configured or has expired. Set EIGHT_COOKIE, "
-                "store a config cookie, provide EIGHT_COOKIE_FILE, or set "
-                "EIGHT_EMAIL/EIGHT_PASSWORD."
-            )
-
-        cookie = self.login(email, password)
-        auth.save_cookie(cookie)
-        csrf = self.get_csrf()
-        if not csrf:
-            raise AuthRequiredError(
-                "Eight login completed but authenticated /myhome CSRF was not available."
-            )
-        return csrf
-
-    def login(self, email: str, password: str) -> str:
-        response = self.session.get(LOGIN_URL, timeout=self.timeout)
-        response.raise_for_status()
-        token = parse_tokens(response.text).authenticity_token
-        if not token:
-            raise EightApiError("Eight login authenticity_token not found.")
-
-        payload = {
-            "authenticity_token": token,
-            "account_eight_user[social_accounts_attributes][0][address]": email,
-            "account_eight_user[authenticator_attributes][password]": password,
-            "auth_save": "1",
-        }
-        response = self.session.post(
-            LOGIN_URL,
-            data=payload,
-            timeout=self.timeout,
-            allow_redirects=True,
+        raise AuthRequiredError(
+            "Eight authentication is not configured or has expired. "
+            "Run eight_auth_login to log in with Playwright, or eight_set_cookie with a "
+            "valid Cookie header."
         )
-        response.raise_for_status()
-
-        if (
-            "ログインメールアドレスに送信された6桁のコード" in response.text
-            or "received_otp" in response.text
-        ):
-            raise MfaRequiredError(
-                "Eight requested a 6-digit MFA code. Manual continuation is required."
-            )
-        if response.url.rstrip("/").endswith("/login") and "ログイン" in response.text:
-            raise LoginChallengeError("Eight login failed or returned a challenge page.")
-
-        cookie_header = self._cookie_header_from_session()
-        if cookie_header:
-            self.session.headers["Cookie"] = cookie_header
-            return cookie_header
-        raise AuthRequiredError("Eight login succeeded but no session cookies were available.")
 
     def get_csrf(self) -> str | None:
         response = self.session.get(MYHOME_URL, timeout=self.timeout, allow_redirects=True)
@@ -189,20 +143,3 @@ class EightClient:
             }
         )
         return session
-
-    def _load_cookie_file(self, path: Path) -> None:
-        if not path.exists():
-            return
-        jar = MozillaCookieJar(str(path))
-        jar.load(ignore_discard=True, ignore_expires=True)
-        for cookie in jar:
-            if cookie.value is not None:
-                self.session.cookies.set(
-                    cookie.name,
-                    cookie.value,
-                    domain=cookie.domain,
-                    path=cookie.path,
-                )
-
-    def _cookie_header_from_session(self) -> str:
-        return "; ".join(f"{cookie.name}={cookie.value}" for cookie in self.session.cookies)

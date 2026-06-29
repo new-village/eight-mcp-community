@@ -8,8 +8,6 @@ from . import auth
 from .browser_login import run_browser_login
 from .client import EightClient
 from .errors import error_detail
-from .login_setup import save_cookie_from_password_login
-from .setup_help import auth_setup_help
 
 mcp = FastMCP("eight-mcp-community")
 
@@ -18,106 +16,33 @@ def _client() -> EightClient:
     return EightClient.from_default_config()
 
 
+def _set_cookie(cookie: str, verify: bool = True) -> dict[str, Any]:
+    return auth.set_cookie(cookie, verify=verify)
+
+
 @mcp.tool()
 def eight_auth_status() -> dict[str, Any]:
-    """Check whether Eight authentication is configured."""
+    """Check whether Eight authentication is configured and currently usable."""
     return auth.auth_status()
 
 
 @mcp.tool()
-def eight_auth_check() -> dict[str, Any]:
-    """Verifies whether configured Eight authentication can access /myhome."""
+def eight_auth_login(headless: bool = False, timeoutSeconds: int = 180) -> dict[str, Any]:
+    """Open a Playwright browser login flow, capture Eight cookies, and save them."""
     try:
-        return _client().auth_check()
-    except Exception as exc:  # noqa: BLE001 - MCP should return structured errors.
-        return error_detail(exc)
-
-
-@mcp.tool()
-def eight_set_cookie(
-    cookie: str | None = None,
-    verify: bool = True,
-    email: str | None = None,
-    password: str | None = None,
-) -> dict[str, Any]:
-    """Store a Cookie header, or log in with email/password and save cookies."""
-    try:
-        if cookie:
-            if verify:
-                client = EightClient()
-                client.session.headers["Cookie"] = cookie
-                client.auth_check()
-            return auth.save_cookie(cookie)
-
-        if email or password:
-            return save_cookie_from_password_login(email or "", password or "")
-
-        raise ValueError("Provide cookie, or email and password.")
+        cookie = run_browser_login(headless=headless, timeout_seconds=timeoutSeconds)
+        return _set_cookie(cookie, verify=True)
     except Exception as exc:  # noqa: BLE001
         return error_detail(exc)
 
 
 @mcp.tool()
-def eight_auth_login_browser(headless: bool = False, timeoutSeconds: int = 180) -> dict[str, Any]:
-    """Open a Playwright browser login flow and save Eight cookies locally."""
+def eight_set_cookie(cookie: str, verify: bool = True) -> dict[str, Any]:
+    """Store a Cookie header in the local MCP config file."""
     try:
-        return run_browser_login(headless=headless, timeout_seconds=timeoutSeconds)
+        return _set_cookie(cookie, verify=verify)
     except Exception as exc:  # noqa: BLE001
         return error_detail(exc)
-
-
-@mcp.tool()
-def eight_clear_cookie() -> dict[str, Any]:
-    """Delete the config-file Eight cookie."""
-    try:
-        return auth.clear_stored_cookie()
-    except Exception as exc:  # noqa: BLE001
-        return error_detail(exc)
-
-
-@mcp.tool()
-def eight_auth_setup() -> dict[str, Any]:
-    """Return recommended setup steps before running auth-dependent tools."""
-    return auth_setup_help()
-
-
-@mcp.tool()
-def eight_login_help() -> dict[str, Any]:
-    """Explains supported eight-mcp-community authentication setup paths."""
-    return {
-        "recommended": (
-            "Run eight_auth_setup first. Base installs should configure cookies "
-            "before browser login."
-        ),
-        "setup": auth_setup_help(),
-        "configFile": str(auth.config_path()),
-        "env": [
-            "EIGHT_COOKIE",
-            "EIGHT_SESSION_COOKIE",
-            "EIGHT_MCP_COMMUNITY_CONFIG",
-            "EIGHT_COOKIE_FILE",
-            "Install/use eight-mcp-community[cloudflare] for curl_cffi "
-            "Chrome impersonation when valid cookies hit 403",
-            "eight_set_cookie email/password arguments or CLI --email/--password",
-            "Browser login is optional and requires eight-mcp-community[browser]",
-        ],
-        "cli": [
-            "uvx eight-mcp-community auth-setup",
-            "uvx eight-mcp-community auth-status",
-            "uvx eight-mcp-community set-cookie 'Cookie header'",
-            "uvx eight-mcp-community set-cookie --email you@example.com --password '...'",
-            "uvx --from 'eight-mcp-community[cloudflare]' eight-mcp-community serve",
-            "python -m pip install --user 'eight-mcp-community[browser]'",
-            "python -m playwright install chromium",
-            "eight-mcp-community auth-login",
-            "uvx eight-mcp-community auth-check",
-            "uvx eight-mcp-community clear-cookie",
-        ],
-        "privacy": (
-            "Do not paste cookies into prompts or logs. Use MCP tool arguments, "
-            "env, config files, or a secret manager."
-        ),
-    }
 
 
 @mcp.tool()

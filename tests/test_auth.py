@@ -1,34 +1,91 @@
+from __future__ import annotations
+
 import json
+from types import SimpleNamespace
+from typing import Any
 
 from eight import auth
 
 
-def test_auth_status_uses_config_cookie(tmp_path, monkeypatch) -> None:
-    path = tmp_path / "config.json"
-    path.write_text(json.dumps({"cookie": "foo=bar; baz=qux; session=longvalue"}), encoding="utf-8")
+class FakeStatusClient:
+    def __init__(self, *, authenticated: bool = True) -> None:
+        self.authenticated = authenticated
+        self.cookies_checked: list[str] = []
+
+    def auth_status_for_cookie(self, cookie: str) -> dict[str, Any]:
+        self.cookies_checked.append(cookie)
+        return {"authenticated": self.authenticated, "csrfAvailable": self.authenticated}
+
+
+def _only_test_config(monkeypatch, path) -> None:
     monkeypatch.setenv("EIGHT_MCP_COMMUNITY_CONFIG", str(path))
     monkeypatch.delenv("EIGHT_COOKIE", raising=False)
-    monkeypatch.delenv("EIGHT_SESSION_COOKIE", raising=False)
-    monkeypatch.delenv("EIGHT_COOKIE_FILE", raising=False)
-    monkeypatch.delenv("EIGHT_EMAIL", raising=False)
-    monkeypatch.delenv("EIGHT_PASSWORD", raising=False)
 
-    status = auth.auth_status()
+
+def test_auth_status_reports_setup_required_when_config_cookie_is_missing(
+    tmp_path, monkeypatch
+) -> None:
+    path = tmp_path / "config.json"
+    _only_test_config(monkeypatch, path)
+    client = FakeStatusClient()
+
+    status = auth.auth_status(client_factory=lambda: client)
+
+    assert status == {
+        "configured": False,
+        "authenticated": False,
+        "status": "setup_required",
+        "source": "none",
+        "configPath": str(path),
+        "nextAction": "Run eight_auth_login or eight_set_cookie.",
+    }
+    assert client.cookies_checked == []
+
+
+def test_auth_status_checks_config_cookie_against_eight(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"cookie": "foo=bar; session=longvalue"}), encoding="utf-8")
+    _only_test_config(monkeypatch, path)
+    client = FakeStatusClient(authenticated=True)
+
+    status = auth.auth_status(client_factory=lambda: client)
 
     assert status["configured"] is True
+    assert status["authenticated"] is True
+    assert status["status"] == "ok"
     assert status["source"] == "config"
     assert status["configPath"] == str(path)
-    assert "foo=ba" in status["cookiePreview"]
+    assert status["cookiePreview"] == "foo=ba…gvalue"
+    assert client.cookies_checked == ["foo=bar; session=longvalue"]
 
 
-def test_save_and_clear_cookie(tmp_path, monkeypatch) -> None:
+def test_auth_status_reports_expired_cookie_without_leaking_cookie(tmp_path, monkeypatch) -> None:
     path = tmp_path / "config.json"
-    monkeypatch.setenv("EIGHT_MCP_COMMUNITY_CONFIG", str(path))
+    path.write_text(json.dumps({"cookie": "foo=bar; session=expiredvalue"}), encoding="utf-8")
+    _only_test_config(monkeypatch, path)
+
+    def failing_factory() -> Any:
+        return SimpleNamespace(
+            auth_status_for_cookie=lambda _cookie: (_ for _ in ()).throw(
+                RuntimeError("login failed")
+            )
+        )
+
+    status = auth.auth_status(client_factory=failing_factory)
+
+    assert status["configured"] is True
+    assert status["authenticated"] is False
+    assert status["status"] == "auth_failed"
+    assert status["nextAction"] == "Run eight_auth_login or eight_set_cookie with a fresh cookie."
+    assert "expiredvalue" not in str(status)
+
+
+def test_save_cookie_overwrites_config_cookie(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "config.json"
+    _only_test_config(monkeypatch, path)
 
     saved = auth.save_cookie("foo=bar; baz=qux")
-    assert saved["saved"] is True
-    assert json.loads(path.read_text(encoding="utf-8"))["cookie"] == "foo=bar; baz=qux"
+    auth.save_cookie("new=session")
 
-    cleared = auth.clear_stored_cookie()
-    assert cleared["cleared"] is True
-    assert not path.exists()
+    assert saved["saved"] is True
+    assert json.loads(path.read_text(encoding="utf-8"))["cookie"] == "new=session"
