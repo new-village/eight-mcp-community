@@ -20,6 +20,13 @@ def test_only_three_auth_tools_are_exposed() -> None:
     assert not hasattr(mcp_server, "eight_login_help")
 
 
+def test_search_tool_surface_is_intentionally_small() -> None:
+    assert hasattr(mcp_server, "eight_search_person")
+    assert hasattr(mcp_server, "eight_fetch_person")
+    assert not hasattr(mcp_server, "eight_search_registered_cards")
+    assert not hasattr(mcp_server, "eight_search_network_people")
+
+
 def test_auth_login_runs_cli_in_subprocess_to_avoid_asyncio_playwright_conflict(
     monkeypatch,
 ) -> None:

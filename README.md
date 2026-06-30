@@ -165,7 +165,8 @@ eight-mcp-community auth-status
 eight-mcp-community auth-login
 eight-mcp-community set-cookie 'Cookie header'
 eight-mcp-community search '鈴木'
-eight-mcp-community search '鈴木' --always-network
+eight-mcp-community search '鈴木' --source all
+eight-mcp-community fetch-person '<ID_FROM_SEARCH>'
 eight-mcp-community serve
 ```
 
@@ -181,11 +182,10 @@ Authentication tools:
 
 Search tools:
 
-- `eight_search_person` — search registered/exchanged cards first; search public Eight network only if no registered-card hit, unless `alwaysNetwork` is true
-- `eight_search_registered_cards` — search only registered/exchanged business cards
-- `eight_search_network_people` — search only public Eight network people, keeping public results separate from private cards
+- `eight_search_person` — search people and return minimal result fields plus fetchable ids. By default it searches only registered/exchanged cards. Set `source: "all"` to also search public Eight network results. Public network people are returned in `network`; public network company hits are returned separately in `network_companies`.
+- `eight_fetch_person` — fetch detailed fields for an id returned by `eight_search_person`. Registered-card ids can include contact fields such as email and phone numbers; public-network ids return public profile-style fields when available.
 
-Returned data is intentionally minimal and LLM-safe: source, name, company, department, title, updated date, confidence/source bucket, and when available `matched_fields` / `match_excerpt` so users can understand why a result matched. Raw HTML, raw JSON, cookies, tokens, email addresses, phone numbers, and bulk exports are not returned.
+Search results are intentionally minimal and LLM-safe: id, source, name, company, department, title, updated date, confidence/source bucket, and when available `matched_fields` / `match_excerpt` so users can understand why a result matched. Raw HTML, raw JSON, cookies, tokens, email addresses, phone numbers, and bulk exports are not returned by search. Use `eight_fetch_person` only when detailed contact/profile fields are actually needed.
 
 ## Privacy and safety
 

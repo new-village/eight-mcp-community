@@ -31,21 +31,22 @@ def main(argv: list[str] | None = None) -> None:
     set_cookie.add_argument("cookie", help="8card.net Cookie header")
     set_cookie.add_argument("--no-verify", action="store_true", help="Save without verifying first")
 
-    search = sub.add_parser("search", help="Search Eight person cards/network")
+    search = sub.add_parser("search", help="Search Eight registered cards by default")
     search.add_argument("query")
     search.add_argument("--per-page", type=int, default=100)
     search.add_argument("--network-limit", type=int, default=20)
-    search.add_argument("--always-network", action="store_true")
-
-    cards = sub.add_parser("search-registered-cards", help="Search only registered/exchanged cards")
-    cards.add_argument("query")
-    cards.add_argument("--per-page", type=int, default=100)
-
-    network = sub.add_parser(
-        "search-network-people", help="Search only public Eight network people"
+    search.add_argument(
+        "--source",
+        choices=("registered", "all"),
+        default="registered",
+        help=(
+            "Search source: registered cards only by default; "
+            "all also includes public network people and companies"
+        ),
     )
-    network.add_argument("query")
-    network.add_argument("--limit", type=int, default=20)
+
+    fetch = sub.add_parser("fetch-person", help="Fetch detailed fields for an id from search")
+    fetch.add_argument("id")
 
     args = parser.parse_args(argv)
     command = args.command or "serve"
@@ -68,20 +69,12 @@ def main(argv: list[str] | None = None) -> None:
                 args.query,
                 per_page=args.per_page,
                 network_limit=args.network_limit,
-                always_network=args.always_network,
+                source=args.source,
             )
             json_print(result.to_safe_dict())
-        elif command == "search-registered-cards":
-            rows = EightClient.from_default_config().search_registered_cards(
-                args.query,
-                per_page=args.per_page,
-            )
-            json_print([row.to_safe_dict() for row in rows])
-        elif command == "search-network-people":
-            rows = EightClient.from_default_config().search_network_people(
-                args.query, limit=args.limit
-            )
-            json_print([row.to_safe_dict() for row in rows])
+        elif command == "fetch-person":
+            person = EightClient.from_default_config().fetch_person(args.id)
+            json_print({"status": "ok", "person": person.to_safe_dict()})
         else:
             parser.error(f"unknown command: {command}")
     except KeyboardInterrupt:

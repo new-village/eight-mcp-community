@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from .models import CardResult
+from .models import CardResult, CompanyResult
 
 DISPLAY_FIELDS = {
     "name": ("front_full_name", "full_name", "name", "display_name"),
@@ -31,12 +31,22 @@ def first_value(item: dict[str, Any], *keys: str) -> Any:
 
 
 def extract_personal_cards(data: dict[str, Any], *, query: str | None = None) -> list[CardResult]:
+    """Extract minimal registered-card hits from Eight's private search response."""
     rows: list[CardResult] = []
     for personal_card in data.get("personal_cards", []) or []:
+        if not isinstance(personal_card, dict):
+            continue
         person = personal_card.get("person") or {}
+        if not isinstance(person, dict):
+            continue
+        person_id = first_value(person, "id")
         cards = person.get("personal_cards") or [personal_card]
         for card in cards:
+            if not isinstance(card, dict):
+                continue
             friend_card = card.get("friend_card") or card
+            if not isinstance(friend_card, dict):
+                continue
             name = first_value(friend_card, "front_full_name", "full_name", "name") or first_value(
                 person, "full_name", "name"
             )
@@ -46,39 +56,45 @@ def extract_personal_cards(data: dict[str, Any], *, query: str | None = None) ->
             updated = first_value(card, "personal_card_updated_at", "updated_at") or first_value(
                 friend_card, "updated_at"
             )
-            if name or company or department or title:
-                rows.append(
-                    CardResult(
-                        source="Eight: 登録名刺",
-                        name=name,
-                        company=company,
-                        department=department,
-                        title=title,
-                        updated=updated,
-                        confidence="registered_card_match",
-                        **match_context(query, friend_card, person, card),
-                    )
+            if not (name or company or department or title):
+                continue
+            rows.append(
+                CardResult(
+                    id=format_scoped_id("registered", person_id),
+                    source="Eight: 登録名刺",
+                    name=name,
+                    company=company,
+                    department=department,
+                    title=title,
+                    updated=updated,
+                    confidence="registered_card_match",
+                    **match_context(query, friend_card, person, card),
                 )
+            )
     return rows
 
 
-def walk(value: Any) -> Iterable[dict[str, Any]]:
-    if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from walk(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from walk(child)
+def _network_people_items(data: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    """Yield only people-like buckets so companies never leak into person hits."""
+    for bucket in ("eight_users", "people", "users"):
+        items = data.get(bucket)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict):
+                yield item
+        return
 
 
 def extract_network_people(
     data: dict[str, Any], limit: int, *, query: str | None = None
 ) -> list[CardResult]:
+    """Extract public-network people without mixing company hits into the same list."""
     rows: list[CardResult] = []
     seen: set[str] = set()
-    for item in walk(data):
+    for item in _network_people_items(data):
         name = first_value(item, "name", "full_name", "display_name")
+        person_id = first_value(item, "person_id")
         company = first_value(
             item, "company", "company_name", "organization_name", "corporation_name"
         )
@@ -87,6 +103,7 @@ def extract_network_people(
         if not (name and (company or department or title)):
             continue
         row = CardResult(
+            id=format_scoped_id("network", person_id),
             source="Eight: 公開ネットワーク",
             name=name,
             company=company,
@@ -103,6 +120,43 @@ def extract_network_people(
         if len(rows) >= limit:
             break
     return rows
+
+
+def extract_network_companies(
+    data: dict[str, Any], limit: int, *, query: str | None = None
+) -> list[CompanyResult]:
+    """Extract public-network company hits into their own bucket."""
+    rows: list[CompanyResult] = []
+    seen: set[str] = set()
+    for item in data.get("companies", []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = first_value(item, "company_name", "corporation_name", "name")
+        company_id = first_value(item, "company_id", "id")
+        address = first_value(item, "address")
+        if not name:
+            continue
+        row = CompanyResult(
+            id=format_scoped_id("company", company_id),
+            source="Eight: 公開ネットワーク法人",
+            name=name,
+            address=address,
+            confidence="public_network_company_match",
+            **match_context(query, item),
+        )
+        key = repr(row.to_safe_dict())
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(row)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def format_scoped_id(source: str, native_id: Any) -> str | None:
+    """Namespace Eight ids so callers know which fetch endpoint can handle them."""
+    return f"{source}:{native_id}" if native_id is not None else None
 
 
 def match_context(query: str | None, *items: dict[str, Any]) -> dict[str, Any]:

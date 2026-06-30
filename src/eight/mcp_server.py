@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -86,9 +86,9 @@ def eight_search_person(
     query: str,
     perPage: int = 100,
     networkLimit: int = 20,
-    alwaysNetwork: bool = False,
+    source: Literal["registered", "all"] = "registered",
 ) -> dict[str, Any]:
-    """Search registered cards first, then public network only if needed."""
+    """Search registered Eight cards by default; source='all' also includes public network."""
     try:
         return (
             _client()
@@ -96,7 +96,7 @@ def eight_search_person(
                 query,
                 per_page=perPage,
                 network_limit=networkLimit,
-                always_network=alwaysNetwork,
+                source=source,
             )
             .to_safe_dict()
         )
@@ -105,33 +105,10 @@ def eight_search_person(
 
 
 @mcp.tool()
-def eight_search_registered_cards(query: str, perPage: int = 100) -> dict[str, Any]:
-    """Searches only the authenticated user's registered/exchanged Eight business cards."""
+def eight_fetch_person(id: str) -> dict[str, Any]:
+    """Fetch detailed contact/profile fields for an id returned by eight_search_person."""
     try:
-        rows = _client().search_registered_cards(query, per_page=perPage)
-        return {
-            "status": "ok",
-            "query": query,
-            "searched": {"personal_cards": True, "eight_networks": False},
-            "personal": [row.to_safe_dict() for row in rows],
-            "network": [],
-        }
-    except Exception as exc:  # noqa: BLE001
-        return error_detail(exc)
-
-
-@mcp.tool()
-def eight_search_network_people(query: str, limit: int = 20) -> dict[str, Any]:
-    """Search only public Eight network people results."""
-    try:
-        rows = _client().search_network_people(query, limit=limit)
-        return {
-            "status": "ok",
-            "query": query,
-            "searched": {"personal_cards": False, "eight_networks": True},
-            "personal": [],
-            "network": [row.to_safe_dict() for row in rows],
-        }
+        return {"status": "ok", "person": _client().fetch_person(id).to_safe_dict()}
     except Exception as exc:  # noqa: BLE001
         return error_detail(exc)
 
